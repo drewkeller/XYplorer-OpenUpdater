@@ -1,0 +1,13 @@
+// All this script does is call the some other OpenUpdater script.
+// This makes it easy to put this file in your XYplorer scripts folder and
+// put the OpenUpdater folder somewhere else (paths are by default set up for 
+// pointing to <xy>/Scripts/OpenUpdater).
+//
+// Be sure to edit the paths appropriately.
+//
+
+	// for running the default action in the base script
+	load ".\OpenUpdater\OpenUpdater.xys";
+
+	// for menus
+	//load ".\OpenUpdater\OpenUpdater_menu.xys";

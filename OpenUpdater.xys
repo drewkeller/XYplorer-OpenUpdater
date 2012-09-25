@@ -1,0 +1,415 @@
+	// - DO NOT CHANGE - The following two lines are for internal use 
+	global $tempDir, $updaterDir, $sequenceDirection, $ignoreCacheExpiration;
+	global $ignoreCacheExpiration, $xyver, $log;
+
+
+	// --------- user configuration settings -----------------------------------
+	$tempDir    = "<xypath>\temp\";                    // the directory to use for downloading files
+	$updaterDir = "<xypath>\Scripts\OpenUpdater\";     // the directory where the OpenUpdater script is located
+	$sequenceDirection = 0;                            // how to list changes: 0 = lower to higher (older to newer), 1 = higher to lower
+
+
+	// --------- testing/debug settings ----------------------------------------
+	$ignoreCacheExpiration = 0;                        // for testing: 1 = always use a cached file to read the changelogs instead of downloading them
+	//$xyver = "11.60.0103";                           // uncomment for testing a specific version
+	$log = $tempDir . "OpenUpdater.log";
+
+
+	global $officialChanges, $highestOfficialVersion, $downloadOfficialUrl;
+	global $betaChanges, $highestBetaVersion, $downloadBetaUrl;
+	global $allChanges, $downloadUrl, $downloadVersion, $zipFile;
+	global $messages;
+	$xyver = ($xyver == "") ? <xyver> : $xyver;
+	$messages = "";
+	sub _GetBetaChanges;
+	sub _GetOfficialChanges;
+	sub _MergeChanges;
+	sub _ShowUpdates;
+	sub _DownloadZip;
+	sub _UnzipInstall;
+	end TRUE;
+
+"_GetBetaChanges"
+	global $tempDir, $sequenceDirection;
+	global $officialChanges, $highestOfficialVersion, $downloadOfficialUrl;
+	global $betaChanges, $highestBetaVersion, $downloadBetaUrl;
+	global $messages;
+	global $xyver, $log;
+	$betaChanges = "";
+	global $cache, $url, $html; // _ReadCachedUrl variables
+	$cache = $tempDir . "beta.html";
+	$url = "http://www.xyplorer.com/xyfc/viewtopic.php?t=4&start=0&sd=d";
+	sub _ReadCachedUrl;
+	$html = gettoken($html, 2, "</head>");
+	$t = writefile($log, $html, "o", "ta");
+	$html = regexreplace($html, "(\r\n|\r|\n)", " "); 
+	// prepend changes until we reach a version that is smaller than our current version
+	$highestOfficialVersion = "";
+	$i = 1;
+	while(TRUE) {
+		$i++;
+		$text = gettoken($html, $i, "Re: Here's the new BETA");
+		if ($text == "") { 
+			if ($betaChanges != "") {
+				$messages = $messages . "Your version is too old to list all beta change logs."; // . chr(10);
+			}
+			break; 
+		}
+		$text = gettoken($text, 2, "<div class=""postbody"">");
+		$text = gettoken($text, 1, "No-Install Package");
+		$version = regexreplace($text, ".*v(\d+([.]\d+)+).*", "$1");
+		if (compare($xyver, $version, v) >= 0) {
+			break;
+		}
+		$downloadUrl = regexreplace($text, ".*(http://www.xyplorer.com/download/xyplorer_[\d\w._]+?_noinstall\.zip).*", "$1");
+		$name = regexreplace($text, ".*?XYplorer ([^<]+).+", "$1");
+		$text = regexreplace($text, ".+<div class=""codecontent"">v(.*?)</div>.*", "$1");
+		$date = regexreplace($text, ".*(\d{4}.\d{2}.\d{2}.\d{2}.\d{2}).*", "$1");
+		$text = regexreplace($text, ".*?<br />(&nbsp;.+)", "$1");
+		$changes = replace($text, "$version - $date<br />", "");
+		$changes = replace($changes, "<br /></p>", "</p>");
+		if (strpos($name, "BETA") >= 0) {
+			$class = "beta";
+			if ($downloadBetaUrl == "") { 
+				$highestBetaVersion = $version;
+				$downloadBetaUrl = $downloadUrl;
+			}
+		} else {
+			$class = "official";
+			if ($highestOfficialVersion == "") { 
+				$highestOfficialVersion = $version;
+				$downloadOfficialUrl = "http://www.xyplorer.com/download/xyplorer_full_noinstall.zip";
+			}
+		}
+		$thisChange = 
+			"<!-- entry --><!-- %$class% %$version% -->" . chr(10) .
+			"<h3 class=""$class"">$name - $version ($date)</h3>" . chr(10) .
+			"<p class=""$class code"">$changes</p>" . chr(10); 
+			//$betaChanges;
+		if($sequenceDirection == 1) {
+			$betaChanges = $betaChanges . $thisChange;
+		} else {
+			$betaChanges = $thisChange . $betaChanges; // ascending
+		}
+ 	}
+
+"_GetOfficialChanges"
+	global $tempDir, $sequenceDirection, $ignoreCacheExpiration;
+	global $officialChanges, $highestOfficialVersion, $downloadOfficialUrl;
+	global $xyver, $log;
+	// read the latest version from the web page
+	global $latestVersion;
+	sub _GetOfficialVersion;
+	// read the most recent version for which we have cached change logs
+	global $forceDownload, $forceReadCache;
+	$forceDownload = FALSE; $forceReadCache = TRUE;
+	sub _GetOfficialChangesCaching;
+	$c = compare($highestOfficialVersion, $latestVersion, v);
+	if ($c < 0) {
+		// need to update the cache so it includes the latest version change log
+		$forceDownload = TRUE; $forceReadCache = FALSE;
+		sub _GetOfficialChangesCaching;
+	}
+	
+"_GetOfficialVersion"
+	global $log;
+	global $latestVersion;
+	// read the download.php page for a quick check. This one is not cached.
+	$html = readurl("http://www.xyplorer.com/download.php", , , 2);
+	$t = writefile($log, $html, "o");
+	$html = regexreplace($html, "(\r\n|\r|\n)", " ");
+	$latestVersion = regexreplace($html, ".*XYplorer (\d+?[.]\d{2}([.]\d{2,4})?).*", "$1");
+
+"_GetOfficialChangesCaching"
+	global $tempDir, $sequenceDirection, $ignoreCacheExpiration;
+	global $officialChanges, $highestOfficialVersion, $downloadOfficialUrl;
+	global $xyver, $log;
+	$officialChanges = "";
+	$highestOfficialVersion = "";
+	status "Reading changelog for new official version", "progress";
+	
+	// read the whatsnew page for release change logs (this is a long page)
+	global $cache, $url, $html, $forceDownload, $forceReadCache; // _ReadCachedUrl variables
+	$cache = $tempDir . "whatsnew.html";
+	$url = "http://www.xyplorer.com/whatsnew.php";	
+	sub _ReadCachedUrl;
+	$html = gettoken($html, 2, "stuff content here");
+	// prepend changes until we reach a version that is smaller than our current version
+	$i = 1;
+	while(TRUE) {
+		$i++;
+		$text = gettoken($html, $i, "<a name=""v");
+		if ($text == "") { break; }
+		$version = gettoken($text, 1, """></a>");
+		if (compare($xyver, $version, v) >= 0) {
+			break; 
+		}
+		$changes = regexreplace($text, "^.*?(\d.*</a>).*$", "");
+		$changes = regexreplace($changes, "^.*?(<h3.*?</h3>).*$", "");
+		$changes = regexreplace($changes, "^.*?(<p.*?</p>).*$", "");
+		$changes = regexreplace($changes, "^.*?<div.*?>(.*)$", "&nbsp; &nbsp; * $1<br />");
+		$changes = regexreplace($changes, "^(.*)</div>$", "$1<br />");
+		$changes = regexreplace($changes, "^[ ]{6}(.*)$", "&nbsp; &nbsp; &nbsp; $1<br />");
+		$changes = regexreplace($changes, "^(.*<br\s?/?>)<br\s?/?>.*$", "$1");
+		
+		$text = regexreplace($text, "(\r\n|\r|\n)", " ");
+		$t = writefile($log, $text, "o", "ta");
+		$name = regexreplace($text, ".*?<h3.*?>([^\d]+)\s\d.*</h3>.*", "$1");
+		$name = regexreplace($name, "What's new in", "Official Release");
+		$t = writefile($log, chr(10).$name, "a", "ta");
+		$date = regexreplace($text, ".*<p.*>(.*)</p>.*", "$1");
+		$text = gettoken($text, 2, "</p>");
+		$text  = regexreplace($text, "\s+<div.+?>(.*</div>)\s+", "&nbsp; &nbsp; &nbsp; $1");
+		
+		$changes = regexreplace($changes, "(\r\n|\r|\n)", " ");
+		$changes = replace($changes, "&nbsp; <b>", "* <b>");
+		$changes = replace($changes, "</div>", "<br />" . chr(10));
+		$changes = replace($changes, "<br />" . chr(10), "");
+		$thisChange = 
+			"<!-- entry --><!-- %official% %$version% -->" . chr(10) .
+			"<h3 class='official'>$name - $version ($date)</h3>" . chr(10) .
+			"<p class='official code'>$changes</p>" . chr(10);
+			//$officialChanges;
+		if($sequenceDirection == 1) {
+			$officialChanges = $officialChanges . $thisChange;
+		} else {
+			$officialChanges = $thisChange . $officialChanges;  // lower to higher
+		}
+		if (compare($version, $highestOfficialVersion, v) > 0) { 
+			$highestOfficialVersion = $version;
+			$downloadOfficialUrl = "http://www.xyplorer.com/download/xyplorer_full_noinstall.zip";
+		}
+	}
+	$t = writefile($log, $officialChanges, "o", "ta");
+
+"_MergeChanges"
+	global $sequenceDirection;
+	global $officialChanges, $highestOfficialVersion, $downloadOfficialUrl;
+	global $betaChanges, $highestBetaVersion, $downloadBetaUrl;
+	global $allChanges;
+	//writefile("beta_changes.html", $betaChanges);
+	//writefile("official_changes.html", $officialChanges);
+	$o = 2;
+	$b = 2;
+	$oVersion = "";
+	$bVersion = "";
+	$entrySep = "<!-- entry -->";
+	$replace = "<!-- %(.*[^?])% %(.*[^?])% -->";
+	$oText = gettoken($officialChanges, $o, $entrySep);
+	$bText = gettoken($betaChanges, $b, $entrySep);
+	while(TRUE) {
+		if ($oText == "" && $bText == "") { break; }
+		if ($oText == "") {
+			$oVersion = ($sequenceDirection == 0) ? "99.99.9999" : 0;
+		} else {
+			$oVersion = gettoken($oText, 1, chr(10));
+			$oVersion = regexreplace($oVersion, $replace, "$2");
+		}
+		if ($bText == "") {
+			$bVersion = ($sequenceDirection == 0) ? "99.99.9999" : 0;
+		} else {
+			$bVersion = gettoken($bText, 1, chr(10));
+			$bVersion = regexreplace($bVersion, $replace, "$2");
+		}
+		// ascending  (0): add whichever has the lower version. 
+		// descending (1): add whichever has the higher version.
+		// both: if versions are equal, use the one from the beta changelog
+		$c = compare($oVersion, $bVersion, v);
+		if ( ($sequenceDirection == 0 && $c < 0) || ($sequenceDirection == 1 && $c > 0) ) {
+			$allChanges = $allChanges . $oText; 
+			$oText = gettoken($officialChanges, $o++, $entrySep);
+		} else {
+			$allChanges = $allChanges . $bText; 
+			if ($c == 0) {
+				$oText = gettoken($officialChanges, $o++, $entrySep);
+			}
+			$bText = gettoken($betaChanges, $b++, $entrySep);
+		}
+	}
+
+"_ShowUpdates"
+	global $officialChanges, $highestOfficialVersion, $downloadOfficialUrl;
+	global $betaChanges, $highestBetaVersion, $downloadBetaUrl;
+	global $allChanges, $response, $downloadUrl, $downloadVersion;
+	global $messages;
+	global $xyver, $tempDir, $log;
+	
+	if ($allChanges == "") { $messages = "You already have the latest version." . chr(10) . $messages; }
+	
+	if ($messages != "") { $messages = regexreplace($messages, "(.+)", "<h2>$1</h2>"); }
+	
+	$oMsg = "Update to v$highestOfficialVersion";
+	$bMsg = "Update to v$highestBetaVersion";
+	$buttons = "";
+	$officialIsHigher = compare($highestOfficialVersion, $highestBetaVersion, v) > 0;
+	$oHighest = ""; $bHighest = "";
+	if ($officialIsHigher) {
+		$oHighest = "highest"; 
+	} else {
+		$bHighest = "highest";
+	}
+	$oButton = ($highestOfficialVersion == "") ? "" : (
+		"<a href='xys:      Update to official v$highestOfficialVersion' onclick='javascript:doit(""official"");' " .
+		"class='$oHighest official buttons' name='updateOfficial'>$oMsg</a>");
+	$bButton = ($highestBetaVersion == "") ? "" : (
+		"<a href='xys:      Update to beta v$highestBetaVersion' onclick='javascript:doit(""beta"");' " .
+		"class='$bHighest beta buttons' name='updateBeta'>$bMsg</a>");
+	if ($officialIsHigher) {
+		$buttons = $oButton . " &nbsp;" . $bButton; 
+	} else {
+		$buttons = $bButton . " &nbsp;" . $oButton; 
+	}
+
+	$borderColor = "#C9C9C9";
+	$html = <<<HTML_DOC
+		<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml2/DTD/xhtml1-strict.dtd">
+		<html><head><title>Update XYplorer</title>
+		<meta http-equiv="Content-Type" content="text/html;'.' charset=iso-8859-1">
+		<style type="text/css" rel="stylesheet">
+		/* This imageless css button was generated by CSSButtonGenerator.com */
+		.buttons {
+			-moz-box-shadow:inset 0px 1px 0px 0px #ffffff;
+			-webkit-box-shadow:inset 0px 1px 0px 0px #ffffff;
+			box-shadow:inset 0px 1px 0px 0px #ffffff;
+			background:-webkit-gradient( linear, left top, left bottom, color-stop(0.05, #ededed), color-stop(1, #dfdfdf) );
+			background:-moz-linear-gradient( center top, #ededed 5%, #dfdfdf 100% );
+			filter:progid:DXImageTransform.Microsoft.gradient(startColorstr='#ededed', endColorstr='#dfdfdf');
+			background-color:#ededed;
+			-moz-border-radius:6px;
+			-webkit-border-radius:6px;
+			border-radius:6px;
+			border:1px solid #dcdcdc;
+			display:inline-block;
+			color:#777777;
+			font-family:'Segoe UI',Tahoma,Arial;
+			font-size:10px;
+			/* font-weight:bold; */
+			padding:6px 24px;
+			text-decoration:none;
+			text-shadow:1px 1px 0px #ffffff;
+			vertical-align: middle;
+		}.buttons:hover {
+			background:-webkit-gradient( linear, left top, left bottom, color-stop(0.05, #dfdfdf), color-stop(1, #ededed) );
+			background:-moz-linear-gradient( center top, #dfdfdf 5%, #ededed 100% );
+			filter:progid:DXImageTransform.Microsoft.gradient(startColorstr='#dfdfdf', endColorstr='#ededed');
+			background-color:#dfdfdf;
+		}.buttons:active {
+			position:relative;
+			top:1px;
+		}
+		body { font-size : 12px; font-family : verdana, arial, helvetica, sans-serif; background: white; color: black; margin: 0; padding: 0; }
+		p { line-height: 1.25em; padding: 0px; margin-bottom:10px;}
+		h1 { margin: 0.5em 0.5em 0.0em 0.5em; padding: 0.2em 1em 0.5em 0.8em; background: #EEEEEE; color: #666666; border: 1px solid $borderColor; line-height: 1.5em; }
+		h2 { margin: 0.5em 0.5em 0.0em 0.5em; padding: 0.2em 1em 0.5em 0.8em; background: #FFEEEE; color: #666666; border: 1px solid $borderColor; line-height: 1.5em; }
+		h3 { margin: 0.5em 0.0em 0.0em 0.0em; padding: 0.2em 1em 0.0em 0.8em; background: none; color: #666666; border: none; border-bottom: 1px dotted $borderColor; line-height: 1.5em; }
+		h1 { font-size: 150%; font-weight: bold; }
+		h2 { font-size: 125%; font-weight: normal; text-align: center;}
+		h3 { font-size: 125%; font-weight: normal; }
+		.official { color: #660000; }
+		.beta { color: #006600; }
+		#content { font-size: 100%; width: 650px; margin: 0 1em 0 1em; padding: 0; }
+		form { border:none; padding: 0px; margin: 0px; }
+		fieldset { border:none; padding:0px 0px 0px 0px; margin:0px; }
+		.button_panel { margin: 0px; padding: 10px 15px 10px 10px; background: #EDEDED; color: #000066; }
+		.highest { font-size: 150%; font-weight: bold; }
+		.code { margin: 2px 0 10px 0; font-family: Consolas, 'Courier New', monospace; }
+		#button_panel { 
+			position: absolute; width: 100%; padding: 10px 0 5px 0; 
+			padding-bottom: expression ( button_panel.height + 'px' ); 
+			top: expression( ( - button_panel.offsetHeight + 
+				( document.documentElement.clientHeight ? document.documentElement.clientHeight : document.body.clientHeight ) + 
+				( ignoreMe = document.documentElement.scrollTop ? document.documentElement.scrollTop :  document.body.scrollTop ) ) + 'px' ); 
+			background: #EEEEEE; text-align: center; border: none; border-top: 2px solid #666666; }
+		#content { padding-bottom: expression( button_panel.offsetHeight + 'px' ); }
+</style>
+		<script language="javascript">
+		function doit(name) { 
+			document.getElementById('update'+name).href = "javascript:{}";
+			document.getElementById('updateType').value = name; 
+			document.getElementById('UpdateForm').submit();
+			return false;
+		}
+		</script>
+		</head>
+		<body>
+		<h1>XYplorer Changelog</h1>
+			$messages
+			<div id="content">
+			$allChanges
+			<p class="code">
+			Current : <xyver>   $xyver</br>
+			Beta &nbsp;&nbsp; : $highestBetaVersion ($downloadBetaUrl)</br>
+			Official: $highestOfficialVersion ($downloadOfficialUrl)</br>
+			</p>
+			</div>
+		<form id="UpdateForm" name="UpdateForm" action="xys:Update"><fieldset>
+		<input type="hidden" id="updateType" name="updateType" />
+		<div id="button_panel">$buttons</div>
+		</fieldset></form>
+		</body></html>
+HTML_DOC;
+	//$t = writefile($tempDir."OpenUpdater_output.html", $html, "o");
+	$response = html($html, 750, 600, "Updates Available");
+	if ($response == "") { end TRUE; }
+	if (strpos($response, "beta") >= 0) {
+		$downloadUrl = $downloadBetaUrl;
+		$downloadVersion = $highestBetaVersion;
+	} elseif (strpos($response, "official") >= 0) {
+		$downloadUrl = $downloadOfficialUrl;
+		$downloadVersion = $highestOfficialVersion;
+	}
+
+"_DownloadZip"
+	global $zipFile, $downloadUrl, $downloadVersion, $tempDir;
+	$tempDir = regexreplace($tempDir."\", "(.*)\\\\$", "$1\");  // ensure ends with one '/'
+	$zipFile = $tempDir . "xyplorer_" . $downloadVersion . "_noinstall.zip";
+	download($downloadUrl, $zipFile);
+
+"_UnzipInstall"
+	global $zipFile, $downloadVersion, $tempDir, $updaterDir;
+	if (! exists($zipFile)) { msg("Could not find the zip file: " . chr(10) . $zipFile); end TRUE; }
+	// quote the path, but only path, not drive or file.exe (e.g. C:"\Program Files\XYplorer"\XYplorer.exe)
+	$drive = substr(<xypath>, 0, 2);
+	$path = substr(<xypath>, 2);
+	$cmd = 
+		"cmd /c title Updating XYplorer to $downloadVersion..." .
+		"&&prompt $&&echo Exiting XYplorer..." . 
+		"&&ping -n 2 127.0.0.1 >nul&&echo." . 
+		"&&echo Extracting XYplorer $downloadVersion...&&echo." . 
+		"&&cscript //nologo ""$updaterDir\unzip.vbs"" /source:""$zipFile"" /dest:""<xypath>""&&echo." . 
+		"&&echo Starting XYplorer...&&start ""XYplorer"" $drive""$path""\<xyexe>&&echo.".
+		"&&echo Done.";
+	run $cmd, <xypath>;
+	#192;	// Exit (saves settings if "Save on Exit" is enabled)
+
+"_GetFileAge"
+	global $inFile;        // function inputs
+	global $fileAge;       // function outputs
+	global $tempDir;
+	$timeFile = $tempDir . "time.txt";
+	writefile($timeFile, "Check modified timestamp to get UTC offset", "o");
+	$tempModified = Property( "Write", $timeFile);
+	$inModified = Property( "Write", $inFile);
+	$fileAge = datediff($inModified, $tempModified, "s");
+
+"_ReadCachedUrl"
+	global $url, $cache, $forceDownload, $forceReadCache;      // function inputs
+	global $html;              // function outputs
+	$cacheExpiration = 3600;   // max age of cache (in seconds)
+	$fileAge = 99999;          // just a number bigger than cache time
+	if (! $forceReadCache && exists($cache)) {
+		global $inFile, $fileAge; 
+		$inFile = $cache; 
+		sub _GetFileAge;
+	}
+	if (exists($cache) && 
+		($forceReadCache || $fileAge < $cacheExpiration) &&
+		! $forceDownload) { 
+		// cache is still young (or we are forcing to use it)... read it
+		$html = readfile($cache);
+	} else {
+		// cache is old or doesn't exist... create/refresh it
+		$html = readurl($url, , , 2); 
+		$t = writefile($cache, $html, "o");
+	}
+	

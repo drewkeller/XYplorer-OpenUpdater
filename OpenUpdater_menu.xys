@@ -1,0 +1,6 @@
+// Provides the menu structure that refers to the OpenUpdater base script for
+// the scripts that do the actual work.
+
+"Check for Updates : CheckForUpdates"
+	load ".\OpenUpdater.xys";
+	
