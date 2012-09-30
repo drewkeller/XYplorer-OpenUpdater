@@ -12,6 +12,9 @@ etc.
 Project page:
 http://github.com/drewkeller/XYplorer-OpenUpdater
 
+Download zip file:
+http://github.com/drewkeller/XYplorer-OpenUpdater/zipball/master
+
 Installation
 ------------
 

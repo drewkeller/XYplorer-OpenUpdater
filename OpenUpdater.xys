@@ -11,16 +11,20 @@
 
 	// --------- testing/debug settings ----------------------------------------
 	$ignoreCacheExpiration = 0;                        // for testing: 1 = always use a cached file to read the changelogs instead of downloading them
-	//$xyver = "11.60.0103";                           // uncomment for testing a specific version
+	//$xyver = "11.50.0103";                           // uncomment for testing a specific version
 	$log = $tempDir . "OpenUpdater.log";
 
 
+	global $BETA_CHANGELOG_URL;
+	$BETA_CHANGELOG_URL = "http://www.xyplorer.com/xyfc/viewtopic.php?t=4&start=0&sd=d";
+	
 	global $officialChanges, $highestOfficialVersion, $downloadOfficialUrl;
 	global $betaChanges, $highestBetaVersion, $downloadBetaUrl;
 	global $allChanges, $downloadUrl, $downloadVersion, $zipFile;
 	global $messages;
 	$xyver = ($xyver == "") ? <xyver> : $xyver;
 	$messages = "";
+	sub _CheckMinimumXyVersion;
 	sub _GetBetaChanges;
 	sub _GetOfficialChanges;
 	sub _MergeChanges;
@@ -28,8 +32,25 @@
 	sub _DownloadZip;
 	sub _UnzipInstall;
 	end TRUE;
+	
+"_CheckMinimumXyVersion"
+	global $xyver;
+	// 8.40.0102 needed for new format of function calls using parentheses
+	$minRequired = "8.40.0102";
+	$minKnownOk = "11.50.000";
+	if (compare($xyver, $minRequired, v) < 0) { 
+		msg "Your version of XYplorer is too old to use this script." . chr(10) .
+			"Please update to the most recent release version manually.";
+		end TRUE;
+	} elseif (compare($xyver, $minKnownOk, v) < 0) {
+		msg "Your version of XYplorer is older than the minimum version known " .
+			"to work with this script." . chr(10) .
+			"It MIGHT work with your version, but if something strange happens, " .
+			"please update to the most recent release version manually.";
+	}
 
 "_GetBetaChanges"
+	global $BETA_CHANGELOG_URL;
 	global $tempDir, $sequenceDirection;
 	global $officialChanges, $highestOfficialVersion, $downloadOfficialUrl;
 	global $betaChanges, $highestBetaVersion, $downloadBetaUrl;
@@ -38,7 +59,7 @@
 	$betaChanges = "";
 	global $cache, $url, $html; // _ReadCachedUrl variables
 	$cache = $tempDir . "beta.html";
-	$url = "http://www.xyplorer.com/xyfc/viewtopic.php?t=4&start=0&sd=d";
+	$url = $BETA_CHANGELOG_URL;
 	sub _ReadCachedUrl;
 	$html = gettoken($html, 2, "</head>");
 	$t = writefile($log, $html, "o", "ta");
@@ -105,7 +126,7 @@
 	$forceDownload = FALSE; $forceReadCache = TRUE;
 	sub _GetOfficialChangesCaching;
 	$c = compare($highestOfficialVersion, $latestVersion, v);
-	if ($c < 0) {
+	if ($c < 0 && ! $ignoreCacheExpiration) {
 		// need to update the cache so it includes the latest version change log
 		$forceDownload = TRUE; $forceReadCache = FALSE;
 		sub _GetOfficialChangesCaching;
@@ -114,8 +135,12 @@
 "_GetOfficialVersion"
 	global $log;
 	global $latestVersion;
+	global $tempDir, $cache, $url, $html; // for caching
 	// read the download.php page for a quick check. This one is not cached.
-	$html = readurl("http://www.xyplorer.com/download.php", , , 2);
+	$cache = $tempDir . "download.html";
+	$url = "http://www.xyplorer.com/download.php";
+	sub _ReadCachedUrl;
+	//$html = readurl(, , , 2);
 	$t = writefile($log, $html, "o");
 	$html = regexreplace($html, "(\r\n|\r|\n)", " ");
 	$latestVersion = regexreplace($html, ".*XYplorer (\d+?[.]\d{2}([.]\d{2,4})?).*", "$1");
@@ -141,8 +166,9 @@
 		$text = gettoken($html, $i, "<a name=""v");
 		if ($text == "") { break; }
 		$version = gettoken($text, 1, """></a>");
+		// already have the latest or better official version
 		if (compare($xyver, $version, v) >= 0) {
-			break; 
+			break;
 		}
 		$changes = regexreplace($text, "^.*?(\d.*</a>).*$", "");
 		$changes = regexreplace($changes, "^.*?(<h3.*?</h3>).*$", "");
@@ -175,7 +201,7 @@
 		} else {
 			$officialChanges = $thisChange . $officialChanges;  // lower to higher
 		}
-		if (compare($version, $highestOfficialVersion, v) > 0) { 
+		if ($highestOfficialVersion == "" || (compare($version, $highestOfficialVersion, v) > 0)) { 
 			$highestOfficialVersion = $version;
 			$downloadOfficialUrl = "http://www.xyplorer.com/download/xyplorer_full_noinstall.zip";
 		}
@@ -228,6 +254,7 @@
 	}
 
 "_ShowUpdates"
+	global $BETA_CHANGELOG_URL;
 	global $officialChanges, $highestOfficialVersion, $downloadOfficialUrl;
 	global $betaChanges, $highestBetaVersion, $downloadBetaUrl;
 	global $allChanges, $response, $downloadUrl, $downloadVersion;
@@ -237,6 +264,12 @@
 	if ($allChanges == "") { $messages = "You already have the latest version." . chr(10) . $messages; }
 	
 	if ($messages != "") { $messages = regexreplace($messages, "(.+)", "<h2>$1</h2>"); }
+	
+	$disclaimer = "<p>DISCLAIMER: The author of XYplorer recommends against the use of 
+		updater scripts, which parse changelogs. If the format of the changelog
+		channges, the parsing might not be successful and you might not be aware
+		of all of the details.<br />
+		<a href='$BETA_CHANGELOG_URL'>The unparsed changelog may be viewed here.</a></p>";
 	
 	$oMsg = "Update to v$highestOfficialVersion";
 	$bMsg = "Update to v$highestBetaVersion";
@@ -297,14 +330,19 @@
 			position:relative;
 			top:1px;
 		}
-		body { font-size : 12px; font-family : verdana, arial, helvetica, sans-serif; background: white; color: black; margin: 0; padding: 0; }
+		body { padding: 0; margin: 0; font-size : 12px; font-family : verdana, arial, helvetica, sans-serif; background: white; color: black; }
+		#page { margin: 0.5em 0.5em 0.0em 0.5em; }
 		p { line-height: 1.25em; padding: 0px; margin-bottom:10px;}
-		h1 { margin: 0.5em 0.5em 0.0em 0.5em; padding: 0.2em 1em 0.5em 0.8em; background: #EEEEEE; color: #666666; border: 1px solid $borderColor; line-height: 1.5em; }
-		h2 { margin: 0.5em 0.5em 0.0em 0.5em; padding: 0.2em 1em 0.5em 0.8em; background: #FFEEEE; color: #666666; border: 1px solid $borderColor; line-height: 1.5em; }
-		h3 { margin: 0.5em 0.0em 0.0em 0.0em; padding: 0.2em 1em 0.0em 0.8em; background: none; color: #666666; border: none; border-bottom: 1px dotted $borderColor; line-height: 1.5em; }
+		h1 { padding: 0.2em 1em 0.5em 0.8em; background: #EEEEEE; color: #666666; border: 1px solid #C9C9C9; line-height: 1.5em; }
+		h2 { padding: 0.2em 1em 0.5em 0.8em; background: none; color: #666666; border: none; line-height: 1.5em; }
+		h3 { padding: 0.2em 1em 0.0em 0.8em; background: none; color: #666666; border: none; border-bottom: 1px dotted #C9C9C9; line-height: 1.5em; }
 		h1 { font-size: 150%; font-weight: bold; }
-		h2 { font-size: 125%; font-weight: normal; text-align: center;}
+		h2 { font-size: 125%; font-weight: normal; }
 		h3 { font-size: 125%; font-weight: normal; }
+		#disclaimer { font-size: 75%; padding: 5px; margin: 0 10px 10px 10px; background: #F8F8F8; color: #666666; border: 1px dotted #666666; }
+		#disclaimer p { margin:0; padding:0;}
+		#messages { padding: 0.2em 1em 0.5em 0.8em; margin: 0 10px 10px 10px; background: #FFEEEE; color: #666666; border: 1px solid #C9C9C9; }
+		#messages h2 { padding: 0; margin: 0; }
 		.official { color: #660000; }
 		.beta { color: #006600; }
 		#content { font-size: 100%; width: 650px; margin: 0 1em 0 1em; padding: 0; }
@@ -332,8 +370,10 @@
 		</script>
 		</head>
 		<body>
+		<div id="page">
 		<h1>XYplorer Changelog</h1>
-			$messages
+			<div id="disclaimer">$disclaimer</div>
+			<div id="messages">$messages</div>
 			<div id="content">
 			$allChanges
 			<p class="code">
@@ -342,13 +382,14 @@
 			Official: $highestOfficialVersion ($downloadOfficialUrl)</br>
 			</p>
 			</div>
+		</div>
 		<form id="UpdateForm" name="UpdateForm" action="xys:Update"><fieldset>
 		<input type="hidden" id="updateType" name="updateType" />
 		<div id="button_panel">$buttons</div>
 		</fieldset></form>
 		</body></html>
 HTML_DOC;
-	//$t = writefile($tempDir."OpenUpdater_output.html", $html, "o");
+	$t = writefile($tempDir."OpenUpdater_output.html", $html, "o");
 	$response = html($html, 750, 600, "Updates Available");
 	if ($response == "") { end TRUE; }
 	if (strpos($response, "beta") >= 0) {
@@ -393,6 +434,7 @@ HTML_DOC;
 	$fileAge = datediff($inModified, $tempModified, "s");
 
 "_ReadCachedUrl"
+	global $ignoreCacheExpiration;
 	global $url, $cache, $forceDownload, $forceReadCache;      // function inputs
 	global $html;              // function outputs
 	$cacheExpiration = 3600;   // max age of cache (in seconds)
@@ -402,9 +444,10 @@ HTML_DOC;
 		$inFile = $cache; 
 		sub _GetFileAge;
 	}
+	$expired = $ignoreCacheExpiration ? FALSE : $fileAge > $cacheExpiration;
 	if (exists($cache) && 
-		($forceReadCache || $fileAge < $cacheExpiration) &&
-		! $forceDownload) { 
+		! $forceDownload == 1 && 
+		($forceReadCache == 1 || ! $expired) ) { 
 		// cache is still young (or we are forcing to use it)... read it
 		$html = readfile($cache);
 	} else {
@@ -412,4 +455,6 @@ HTML_DOC;
 		$html = readurl($url, , , 2); 
 		$t = writefile($cache, $html, "o");
 	}
+	// reset these
+	$forceDownload = ""; $forceReadCache = "";
 	
