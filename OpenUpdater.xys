@@ -173,6 +173,8 @@
 		$version = gettoken($text, 1, """></a>");
 		// already have the latest or better official version
 		if (compare($xyver, $version, v) >= 0) {
+			$highestOfficialVersion = $version;
+			$downloadOfficialUrl = "";
 			break;
 		}
 		$changes = regexreplace($text, "^.*?(\d.*</a>).*$", "");
@@ -270,7 +272,7 @@
 	
 	if ($messages != "") { 
 		$messages = regexreplace($messages, "(.+)", "<h2>$1</h2>"); 
-		$message = "<div id=messages>" . $messages . "</div>";
+		$messages = "<div id=""messages"">" . $messages . "</div>";
 	}
 	
 	$disclaimer = "<p>DISCLAIMER: The author of XYplorer recommends against the use of 
@@ -289,7 +291,8 @@
 	} else {
 		$bHighest = "highest";
 	}
-	$oButton = ($highestOfficialVersion == "") ? "" : (
+	$downloadOfficialUrl = "";
+	$oButton = (($highestOfficialVersion == "") || ($downloadOfficialUrl == "")) ? ("") : (
 		"<a href='xys:      Update to official v$highestOfficialVersion' onclick='javascript:doit(""official"");' " .
 		"class='$oHighest official buttons' name='updateOfficial'>$oMsg</a>");
 	$bButton = ($highestBetaVersion == "") ? "" : (
