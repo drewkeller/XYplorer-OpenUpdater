@@ -1,3 +1,4 @@
+"_Common"
 	// - DO NOT CHANGE - The following two lines are for internal use 
 	global $tempDir, $updaterDir, $sequenceDirection, $ignoreCacheExpiration;
 	global $ignoreCacheExpiration, $xyver, $log;
@@ -24,12 +25,16 @@
 	global $messages;
 	$xyver = ($xyver == "") ? <xyver> : $xyver;
 	$messages = "";
+	
+"_CheckForUpdates"
+	sub _Common;
 	sub _CheckMinimumXyVersion;
 	sub _GetBetaChanges;
 	sub _GetOfficialChanges;
 	sub _MergeChanges;
 	sub _ShowUpdates;
 	sub _DownloadZip;
+	global $version, $downloadVersion; $version = $downloadVersion;
 	sub _UnzipInstall;
 	end TRUE;
 	
@@ -263,7 +268,10 @@
 	
 	if ($allChanges == "") { $messages = "You already have the latest version." . chr(10) . $messages; }
 	
-	if ($messages != "") { $messages = regexreplace($messages, "(.+)", "<h2>$1</h2>"); }
+	if ($messages != "") { 
+		$messages = regexreplace($messages, "(.+)", "<h2>$1</h2>"); 
+		$message = "<div id=messages>" . $messages . "</div>";
+	}
 	
 	$disclaimer = "<p>DISCLAIMER: The author of XYplorer recommends against the use of 
 		updater scripts, which parse changelogs. If the format of the changelog
@@ -373,7 +381,7 @@
 		<div id="page">
 		<h1>XYplorer Changelog</h1>
 			<div id="disclaimer">$disclaimer</div>
-			<div id="messages">$messages</div>
+			$messages
 			<div id="content">
 			$allChanges
 			<p class="code">
@@ -407,17 +415,19 @@ HTML_DOC;
 	download($downloadUrl, $zipFile);
 
 "_UnzipInstall"
-	global $zipFile, $downloadVersion, $tempDir, $updaterDir;
+	global $version, $tempDir;
+	$selfPath = self("path");
+	$zipFile = $tempDir . "xyplorer_" . $version . "_noinstall.zip";
 	if (! exists($zipFile)) { msg("Could not find the zip file: " . chr(10) . $zipFile); end TRUE; }
 	// quote the path, but only path, not drive or file.exe (e.g. C:"\Program Files\XYplorer"\XYplorer.exe)
 	$drive = substr(<xypath>, 0, 2);
 	$path = substr(<xypath>, 2);
 	$cmd = 
-		"cmd /c title Updating XYplorer to $downloadVersion..." .
+		"cmd /c title Updating XYplorer to $version..." .
 		"&&prompt $&&echo Exiting XYplorer..." . 
 		"&&ping -n 2 127.0.0.1 >nul&&echo." . 
-		"&&echo Extracting XYplorer $downloadVersion...&&echo." . 
-		"&&cscript //nologo ""$updaterDir\unzip.vbs"" /source:""$zipFile"" /dest:""<xypath>""&&echo." . 
+		"&&echo Extracting XYplorer $version...&&echo." . 
+		"&&cscript //nologo ""$selfPath\unzip.vbs"" /source:""$zipFile"" /dest:""<xypath>""&&echo." . 
 		"&&echo Starting XYplorer...&&start ""XYplorer"" $drive""$path""\<xyexe>&&echo.".
 		"&&echo Done.";
 	run $cmd, <xypath>;
@@ -457,4 +467,79 @@ HTML_DOC;
 	}
 	// reset these
 	$forceDownload = ""; $forceReadCache = "";
+
+"_ClearCache"
+	global $tempDir;
+	sub _Common;
+	$files = "beta.html|download.html|whatsnew.html";
+	foreach($item, $files, "|") { delete(0, 0, $tempDir . $item); }
+	status("Done cleaning the cache.");
 	
+"_RevertOrUpgrade"
+	global $tempDir, $packages;
+	sub _Common;
+	sub _GetDownloadedPackagesList;
+	$path = self("path");
+	$updater = $path."\OpenUpdater.xys";
+	$f = writefile($tempDir . "test.txt", $packages, "o");
+	$script = "";
+	foreach($item, $packages, <crlf>) {
+		if ($item == "") { continue; }
+		$c = compare($item, <xyver>, v);
+		if ($c < 0) { 
+			$file = '"Revert to v' . $item . '|:back "';
+		} elseif ($c > 0) {
+			$file = '"Upgrade to v' . $item . '|:goprev "';
+		}
+		if ($c == 0) {
+			$script = $script . "-<crlf>";
+		} else {
+			$script = $script . $file . ' global $version; $version="' . $item . '"; load("'.$updater.'", "_UnzipInstall");'.<crlf>;
+		}
+	}
+	$f = writefile($tempDir . "test.txt", $script, "o");
+	load($script, , "s");
+
+"_CleanOldPackages"
+	global $tempDir, $packages;
+	sub _Common;
+	sub _GetDownloadedPackagesList;
+	$self = self("file");
+	$f = writefile($tempDir . "test.txt", $packages, "o");
+	$script = regexreplace ($packages, "^(.*?)\b$", 
+		'"Clean v$1 and older" global $version; $version="$1"; load("'.$self.'", "_CleanPackagesOlderThan");');
+	$f = writefile($tempDir . "test.txt", $script, "o");
+	load($script, , "s");
+
+"_CleanPackagesOlderThan"
+	global $tempDir, $packages, $version;
+	sub _Common;
+	// create a list of files to delete
+	$files = "";
+	$count = 0;
+	foreach($item, $packages, <crlf>) {
+		if ($item == "") { continue; }
+		$c = compare($item, $version, v);
+		if ($c <= 0) { 
+			$count++;
+			$item = $tempDir . "xyplorer_" . $item . "_noinstall.zip";
+			$files = ($files == "") ? ($item) : ($files . "|" . $item);
+		}
+	}
+	$f = writefile($tempDir . "test.txt", $files, "o");
+	if ($files == "") { 
+		msg "Nothing was found to delete." 
+		status("Aborted deleting files.");
+	} else { 
+		msg("Are you sure you want to delete these files?<crlf><crlf>". $files, 1, "|");
+		delete(0, 0, $files);
+		status("Deleted $count files.");
+	}
+
+// Get a list of the zip files in the temp folder, which we've downloaded and saved
+// with a specific version number.
+"_GetDownloadedPackagesList"
+	global $tempDir, $packages;
+	$files = listfolder($tempDir, "xyplorer_*.*.*_noinstall.zip");
+	$packages = report("{Name}<crlf>", $files);
+	$packages = regexreplace ($packages, "xyplorer_(.*?)_noinstall\.zip", "$1");

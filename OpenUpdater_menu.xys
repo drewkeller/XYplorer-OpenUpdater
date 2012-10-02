@@ -1,6 +1,16 @@
-// Provides the menu structure that refers to the OpenUpdater base script for
-// the scripts that do the actual work.
+	// Provides the menu structure that refers to the OpenUpdater base script for
+	// the scripts that do the actual work.
 
-"Check for Updates : CheckForUpdates"
-	load ".\OpenUpdater.xys";
+"Check for Updates|<xypath>\<xyexe>|1 : CheckForUpdates"
+	load(self("path") . "\OpenUpdater.xys", "_CheckForUpdates");
+
+-
+
+"Clear cache|:labels : ClearCache"
+	load(self("path") . "\OpenUpdater.xys", "_ClearCache");
+
+"Revert/Upgrade to a downloaded package|:meta : RevertOrUpgrade"
+	load(self("path") . "\OpenUpdater.xys", "_RevertOrUpgrade");
 	
+"Clean old downloaded packages|:del : CleanOldPackages"
+	load(self("path") . "\OpenUpdater.xys", "_CleanOldPackages");

@@ -7,7 +7,7 @@
 //
 
 	// for running the default action in the base script
-	load ".\OpenUpdater\OpenUpdater.xys";
+	load(".\OpenUpdater\OpenUpdater.xys", "_CheckForUpdates");
 
 	// for menus
 	//load ".\OpenUpdater\OpenUpdater_menu.xys";
