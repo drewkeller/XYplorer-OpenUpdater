@@ -1,3 +1,4 @@
+sub "_CheckForUpdates"; end TRUE;
 "_Common"
 	// - DO NOT CHANGE - The following two lines are for internal use 
 	global $tempDir, $updaterDir, $sequenceDirection, $ignoreCacheExpiration;
@@ -12,7 +13,7 @@
 
 	// --------- testing/debug settings ----------------------------------------
 	$ignoreCacheExpiration = 0;                        // for testing: 1 = always use a cached file to read the changelogs instead of downloading them
-	//$xyver = "11.50.0103";                           // uncomment for testing a specific version
+	//$xyver = "11.60.0104";                           // uncomment for testing a specific version
 	$log = $tempDir . "OpenUpdater.log";
 
 
@@ -155,7 +156,7 @@
 	global $officialChanges, $highestOfficialVersion, $downloadOfficialUrl;
 	global $xyver, $log;
 	$officialChanges = "";
-	$highestOfficialVersion = "";
+	if (! isset($highestOfficialVersion)) { $highestOfficialVersion = ""; }
 	status "Reading changelog for new official version", "progress";
 	
 	// read the whatsnew page for release change logs (this is a long page)
@@ -173,8 +174,10 @@
 		$version = gettoken($text, 1, """></a>");
 		// already have the latest or better official version
 		if (compare($xyver, $version, v) >= 0) {
-			$highestOfficialVersion = $version;
-			$downloadOfficialUrl = "";
+			if ($highestOfficialVersion == "" || compare($version, $highestOfficialVersion, v) > 0) {
+				$highestOfficialVersion = $version;
+				$downloadOfficialUrl = "";
+			}
 			break;
 		}
 		$changes = regexreplace($text, "^.*?(\d.*</a>).*$", "");
@@ -291,7 +294,6 @@
 	} else {
 		$bHighest = "highest";
 	}
-	$downloadOfficialUrl = "";
 	$oButton = (($highestOfficialVersion == "") || ($downloadOfficialUrl == "")) ? ("") : (
 		"<a href='xys:      Update to official v$highestOfficialVersion' onclick='javascript:doit(""official"");' " .
 		"class='$oHighest official buttons' name='updateOfficial'>$oMsg</a>");
@@ -479,7 +481,7 @@ HTML_DOC;
 	status("Done cleaning the cache.");
 	
 "_RevertOrUpgrade"
-	global $tempDir, $packages;
+	global $tempDir, $packages, $xyver;
 	sub _Common;
 	sub _GetDownloadedPackagesList;
 	$path = self("path");
@@ -488,7 +490,7 @@ HTML_DOC;
 	$script = "";
 	foreach($item, $packages, <crlf>) {
 		if ($item == "") { continue; }
-		$c = compare($item, <xyver>, v);
+		$c = compare($item, $xyver, v);
 		if ($c < 0) { 
 			$file = '"Revert to v' . $item . '|:back "';
 		} elseif ($c > 0) {
@@ -510,7 +512,7 @@ HTML_DOC;
 	$self = self("file");
 	$f = writefile($tempDir . "test.txt", $packages, "o");
 	$script = regexreplace ($packages, "^(.*?)\b$", 
-		'"Clean v$1 and older" global $version; $version="$1"; load("'.$self.'", "_CleanPackagesOlderThan");');
+		'"Clean v$1 and older|:del" global $version; $version="$1"; load("'.$self.'", "_CleanPackagesOlderThan");');
 	$f = writefile($tempDir . "test.txt", $script, "o");
 	load($script, , "s");
 
