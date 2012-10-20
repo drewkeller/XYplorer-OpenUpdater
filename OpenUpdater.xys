@@ -1,11 +1,22 @@
+// -----------------------------------------------------------------------------
+// - DO NOT CHANGE - The following four lines are for internal use 
 sub "_CheckForUpdates"; end TRUE;
-"_Common"
-	// - DO NOT CHANGE - The following two lines are for internal use 
-	global $tempDir, $updaterDir, $sequenceDirection, $ignoreCacheExpiration;
+"_Config"
+	global $updaterDir, $iniFile;
+	global $tempDir, $sequenceDirection, $ignoreCacheExpiration;
 	global $ignoreCacheExpiration, $xyver, $log;
+	// - DO NOT CHANGE (END) ---------------------------------------------------
+	//   You can change the user configuration and test/debug sections below
+	// -------------------------------------------------------------------------
 
 
 	// --------- user configuration settings -----------------------------------
+	// OpenUpdater intends that you define your configuration settings in an
+	// .ini file, so you can replace this entire file without having to manually
+	// edit it again. The .ini file needs to be in a location where the OU menu
+	// script can find it (it defaults to the same folder as the menu file, but 
+	// you can change the location in the menu file configuration section).
+	
 	$tempDir    = "<xypath>\temp\";                    // the directory to use for downloading files
 	$updaterDir = "<xypath>\Scripts\OpenUpdater\";     // the directory where the OpenUpdater script is located
 	$sequenceDirection = 0;                            // how to list changes: 0 = lower to higher (older to newer), 1 = higher to lower
@@ -14,9 +25,13 @@ sub "_CheckForUpdates"; end TRUE;
 	// --------- testing/debug settings ----------------------------------------
 	$ignoreCacheExpiration = 0;                        // for testing: 1 = always use a cached file to read the changelogs instead of downloading them
 	//$xyver = "11.60.0104";                           // uncomment for testing a specific version
-	$log = $tempDir . "OpenUpdater.log";
+	$log = $tempDir . "\OpenUpdater.log";
 
 
+	// - DO NOT CHANGE ---------------------------------------------------------
+	// The rest of this file is not intended to be changed, except for 
+	// development work.
+	// -------------------------------------------------------------------------
 	global $BETA_CHANGELOG_URL;
 	$BETA_CHANGELOG_URL = "http://www.xyplorer.com/xyfc/viewtopic.php?t=4&start=0&sd=d";
 	
@@ -28,7 +43,7 @@ sub "_CheckForUpdates"; end TRUE;
 	$messages = "";
 	
 "_CheckForUpdates"
-	sub _Common;
+	sub _Config;
 	sub _CheckMinimumXyVersion;
 	sub _GetBetaChanges;
 	sub _GetOfficialChanges;
@@ -475,14 +490,14 @@ HTML_DOC;
 
 "_ClearCache"
 	global $tempDir;
-	sub _Common;
+	sub _Config;
 	$files = "beta.html|download.html|whatsnew.html";
 	foreach($item, $files, "|") { delete(0, 0, $tempDir . $item); }
 	status("Done cleaning the cache.");
 	
 "_RevertOrUpgrade"
 	global $tempDir, $packages, $xyver;
-	sub _Common;
+	sub _Config;
 	sub _GetDownloadedPackagesList;
 	$path = self("path");
 	$updater = $path."\OpenUpdater.xys";
@@ -507,7 +522,7 @@ HTML_DOC;
 
 "_CleanOldPackages"
 	global $tempDir, $packages;
-	sub _Common;
+	sub _Config;
 	sub _GetDownloadedPackagesList;
 	$self = self("file");
 	$f = writefile($tempDir . "test.txt", $packages, "o");
@@ -518,7 +533,7 @@ HTML_DOC;
 
 "_CleanPackagesOlderThan"
 	global $tempDir, $packages, $version;
-	sub _Common;
+	sub _Config;
 	// create a list of files to delete
 	$files = "";
 	$count = 0;

@@ -1,16 +1,46 @@
 	// Provides the menu structure that refers to the OpenUpdater base script for
 	// the scripts that do the actual work.
 
-"Check for Updates|<xypath>\<xyexe>|1 : CheckForUpdates"
-	load(self("path") . "\OpenUpdater.xys", "_CheckForUpdates");
+"_Config"
+	global $updater, $iniFile; 
 
--
+	// --------- user configuration settings -----------------------------------
+	
+	// Filename or path/filename (relative or absolute) of the ini file. 
+	// If it doesn't exist, it will be created.
+	$iniFile = self("path")."\OpenUpdater.ini";
+	
+	// Path (relative or absolute) to the folder of the main script. 
+	// Path/filename of the main script. This only applies if the ini file 
+	// doesn't contain this setting.
+	$updaterDir = self("path")."\OpenUpdater";
+
+	// --------- end user configuration settings -------------------------------
+	// --------- DO NOT MODIFY BELOW THIS LINE ---------------------------------
+
+	// Get the path to the main updater file from the ini
+	// Creates the ini file if it doesn't exist, using the defaults from the
+	// configuration settings above.
+	$dir = getkey("UpdaterDir", "OpenUpdater", $iniFile);
+	if ($dir == "") { 
+		$dir = $updaterDir;
+		setkey($updaterDir, "UpdaterDir", "OpenUpdater", $iniFile);
+	}
+	// Add the filename to the path
+	$updater = $dir . "\OpenUpdater.xys";
+	// Let the main script set up or read the .ini file and initialize
+	load($updater, "_Config");
+	
+"Check for Updates|<xypath>\<xyexe>|1 : CheckForUpdates"
+	global $updater; sub "_Config"; load($updater, "_CheckForUpdates");
+
+"-"
 
 "Clear cache|:labels : ClearCache"
-	load(self("path") . "\OpenUpdater.xys", "_ClearCache");
+	global $updater; sub "_Config"; load($updater, "_ClearCache");
 
 "Revert/Upgrade to a downloaded package|:meta : RevertOrUpgrade"
-	load(self("path") . "\OpenUpdater.xys", "_RevertOrUpgrade");
+	global $updater; sub "_Config"; load($updater, "_RevertOrUpgrade");
 	
 "Clean old downloaded packages|:del : CleanOldPackages"
-	load(self("path") . "\OpenUpdater.xys", "_CleanOldPackages");
+	global $updater; sub "_Config"; load($updater, "_CleanOldPackages");
