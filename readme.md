@@ -18,19 +18,19 @@ http://github.com/drewkeller/XYplorer-OpenUpdater/zipball/master
 Features
 --------
 
-+ Designed for collaboration
+* (+) Designed for collaboration
 * Checks for updates of beta versions (from the beta topic in the forum)
 * Checks for updates of official releases (downloads.php and whatsnew.php)
-+ Displays two buttons: one for the latest official release and one for the 
+* (+) Displays two buttons: one for the latest official release and one for the 
   latest beta release. You can update to either.
 * The update buttons are always in view regardless of where you scroll the 
   changelog list.
-+ Caching: The downloads from the forum page and whatsnew are cached (for up to
+* (+) Caching: The downloads from the forum page and whatsnew are cached (for up to
   one hour). Always uses the cached whatsnew copy unless the downloads page has 
   a version that isn't shown in the beta page (whatsnew is a large page).
 * Beta logs and release logs are merged, then listed in sequential order by
   version number.
-+ The order of listing can be reversed (ascending/descending by version number)
+* (+) The order of listing can be reversed (ascending/descending by version number)
   by using a configuration option
 * The downloaded zip files are saved (with a specific version number) so you can 
   revert to one you've downloaded before if something isn't working in a new 
@@ -38,7 +38,7 @@ Features
 * You can revert or upgrade to any version zip file that you have in the
   download folder.
 * You can delete all downloaded zip files older than a version that you select.
-+ Comes with a registry file useful for associating .xys files so they can be 
+* (+) Comes with a registry file useful for associating .xys files so they can be 
   placed in arbitrary folders on your computer (also comes with a file you can
   place in your XY scripts folder for convenience).
 
