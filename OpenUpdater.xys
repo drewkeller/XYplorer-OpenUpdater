@@ -15,7 +15,7 @@ sub "_CheckForUpdates"; end TRUE;
 	// .ini file, so you can replace this entire file without having to manually
 	// edit it again. The .ini file needs to be in a location where the OU menu
 	// script can find it (it defaults to the same folder as the menu file, but 
-	// you can change the location in the menu file configuration section).
+	// you can change the location in the menu file configuration section).	
 	
 	$tempDir    = "<xypath>\temp\";                    // the directory to use for downloading files
 	$updaterDir = "<xypath>\Scripts\OpenUpdater\";     // the directory where the OpenUpdater script is located
@@ -56,7 +56,10 @@ sub "_CheckForUpdates"; end TRUE;
 	
 "_CheckMinimumXyVersion"
 	global $xyver;
-	// 8.40.0102 needed for new format of function calls using parentheses
+	// There may be a more recent version that is necessary, but here's what I 
+	// know: 
+	// 8.40.0102: needed for new format of function calls using parentheses.
+	// 11.50.000: approx when OpenUpdater started life.
 	$minRequired = "8.40.0102";
 	$minKnownOk = "11.50.000";
 	if (compare($xyver, $minRequired, v) < 0) { 
