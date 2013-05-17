@@ -100,7 +100,7 @@ sub "_CheckForUpdates"; end TRUE;
 			}
 			break; 
 		}
-		$text = gettoken($text, 2, "<div class=""postbody"">");
+		$text = gettoken($text, 1, "<div class=""postbody"">");
 		$text = gettoken($text, 1, "No-Install Package");
 		$version = regexreplace($text, ".*v(\d+([.]\d+)+).*", "$1");
 		if (compare($xyver, $version, v) >= 0) {
@@ -115,6 +115,7 @@ sub "_CheckForUpdates"; end TRUE;
 		$changes = replace($changes, "<br /></p>", "</p>");
 		if (strpos($name, "BETA") >= 0) {
 			$class = "beta";
+			$changes = regexreplace($changes, "(.*?)</code>.*", "$1");
 			if ($downloadBetaUrl == "") { 
 				$highestBetaVersion = $version;
 				$downloadBetaUrl = $downloadUrl;
