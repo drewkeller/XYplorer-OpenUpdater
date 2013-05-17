@@ -17,8 +17,8 @@ sub "_CheckForUpdates"; end TRUE;
 	// script can find it (it defaults to the same folder as the menu file, but 
 	// you can change the location in the menu file configuration section).	
 	
-	$tempDir    = "<xypath>\temp\";                    // the directory to use for downloading files
-	$updaterDir = "<xypath>\Scripts\OpenUpdater\";     // the directory where the OpenUpdater script is located
+	$tempDir    = "<xydata>\temp\";                    // the directory to use for downloading files
+	$updaterDir = "<xydata>\Scripts\OpenUpdater\";     // the directory where the OpenUpdater script is located
 	$sequenceDirection = 0;                            // how to list changes: 0 = lower to higher (older to newer), 1 = higher to lower
 
 
